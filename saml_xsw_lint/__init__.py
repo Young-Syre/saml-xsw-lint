@@ -7,8 +7,9 @@ that no module here imports a networking library.
 It is not a signature verifier. See the README section "What this tool is not".
 """
 
+from .engine import analyse
 from .findings import CATALOGUE, Finding, Severity
 from .model import Document
 
 __version__ = "0.1.0"
-__all__ = ["CATALOGUE", "Document", "Finding", "Severity", "__version__"]
+__all__ = ["analyse", "CATALOGUE", "Document", "Finding", "Severity", "__version__"]
