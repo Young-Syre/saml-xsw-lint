@@ -108,5 +108,11 @@ jobs:
       - name: No committed private keys or local paths
         run: |
           set -e
-          ! grep -rEn 'BEGIN [A-Z ]*PRIVATE KEY' . --exclude-dir=.git
-          ! grep -rEn '/home/[a-z]|/Users/[a-z]' . --exclude-dir=.git --exclude-dir=.github
+          # Ask git, not the filesystem. By this point the test steps above have
+          # produced __pycache__/*.pyc, and a .pyc embeds both the string
+          # constants and the absolute path the module was compiled from -- so a
+          # tree-wide grep matches the build output and says nothing about what
+          # is actually in the commit, which is the only thing this check means.
+          files=$(git ls-files)
+          ! git grep -nE 'BEGIN [A-Z ]*PRIVATE KEY' -- $files
+          ! git grep -nE '/home/[a-z]|/Users/[a-z]' -- $files ':!.github/'
