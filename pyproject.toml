@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "saml-xsw-lint"
+version = "0.1.0"
+description = "Offline SAML response and XML-signature trust analyser: signature-wrapping shapes, canonicalisation, trust model and assertion semantics."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "David Nichols", email = "244097953+Young-Syre@users.noreply.github.com" }]
+keywords = ["saml", "xml-signature", "xsw", "signature-wrapping", "sso", "security", "appsec"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Information Technology",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Security",
+  "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/Young-Syre/saml-xsw-lint"
+Source = "https://github.com/Young-Syre/saml-xsw-lint"
+Issues = "https://github.com/Young-Syre/saml-xsw-lint/issues"
+
+[project.scripts]
+saml-xsw-lint = "saml_xsw_lint.cli:main"
+
+[tool.setuptools]
+packages = ["saml_xsw_lint"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I", "UP"]
+# UP017/UP033 would rewrite datetime.timezone.utc and lru_cache(maxsize=None) to
+# their newer aliases. Both spellings work on every supported version and the
+# explicit ones read better here, so they stay.
+ignore = ["UP017", "UP033"]
