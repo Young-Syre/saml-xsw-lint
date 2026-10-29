@@ -1,0 +1,112 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unittest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests -t . -v
+
+      - name: Committed examples are reproducible
+        run: python -m tools.make_examples --check
+
+      - name: Benign fixtures are clean (exit 0)
+        run: |
+          python -m saml_xsw_lint examples/benign-response.xml
+          python -m saml_xsw_lint examples/benign-response-signed.xml
+
+      - name: Every XSW variant is detected (exit 1)
+        run: |
+          set -e
+          for number in 1 2 3 4 5 6 7 8; do
+            file=$(ls examples/xsw-0${number}-*.xml)
+            expected=$(printf 'XSW%03d' "${number}")
+            python -m saml_xsw_lint "${file}" > variant.out && code=0 || code=$?
+            if [ "${code}" -ne 1 ]; then
+              echo "::error::${file} exited ${code}, expected 1"; exit 1
+            fi
+            grep -q "${expected}" variant.out || {
+              echo "::error::${file} did not report ${expected}"; cat variant.out; exit 1
+            }
+            echo "ok ${file} -> ${expected}"
+          done
+
+      - name: Unsafe XML is refused (exit 2)
+        run: |
+          set -e
+          for file in tests/data/unsafe-*.xml tests/data/malformed.xml tests/data/not-xml.txt; do
+            python -m saml_xsw_lint "${file}" > refusal.out && code=0 || code=$?
+            if [ "${code}" -ne 2 ]; then
+              echo "::error::${file} exited ${code}, expected 2"; cat refusal.out; exit 1
+            fi
+            grep -q "refused before parsing" refusal.out || {
+              echo "::error::${file} was parsed rather than refused"; exit 1
+            }
+            echo "ok ${file} refused"
+          done
+
+      - name: Billion laughs is refused without expanding
+        run: |
+          set -e
+          timeout 20 python -m saml_xsw_lint tests/data/unsafe-billion-laughs.xml > bomb.out && code=0 || code=$?
+          test "${code}" -eq 2
+          grep -q "XML001" bomb.out
+          grep -q "XML002" bomb.out
+          test "$(wc -c < bomb.out)" -lt 8000
+
+      - name: Usage errors exit 3
+        run: |
+          set -e
+          python -m saml_xsw_lint examples/does-not-exist.xml && code=0 || code=$?
+          test "${code}" -eq 3
+          python -m saml_xsw_lint examples/benign-response.xml --ignore NOPE999 && code=0 || code=$?
+          test "${code}" -eq 3
+
+      - name: fail-on never exits 0
+        run: python -m saml_xsw_lint examples/xsw-06-signed-assertion-in-signature.xml --fail-on never
+
+      - name: Certificate comparison
+        run: |
+          set -e
+          python -m saml_xsw_lint examples/benign-response.xml --cert examples/certs/idp.crt --fail-on never | grep -q CRY006
+          python -m saml_xsw_lint examples/benign-response.xml --cert examples/certs/other-idp.crt --fail-on never | grep -q CRY005
+
+      - name: Generation round-trips to the committed examples
+        run: |
+          set -e
+          python -m saml_xsw_lint --generate examples/benign-response.xml --out generated
+          python -m saml_xsw_lint --generate examples/benign-response-signed.xml --out generated
+          for file in generated/*.xml; do
+            diff -u "examples/$(basename "${file}")" "${file}"
+          done
+
+      - name: JSON output is valid and lists the catalogue
+        run: |
+          set -e
+          python -m saml_xsw_lint examples/xsw-03-forged-assertion-first.xml --json | python -c "import json,sys; d=json.load(sys.stdin); assert d['summary']['total'] > 0; assert any(f['id']=='XSW003' for f in d['findings'])"
+          python -m saml_xsw_lint --list-checks --json | python -c "import json,sys; d=json.load(sys.stdin); assert len(d) == 75, len(d)"
+
+      - name: No committed private keys or local paths
+        run: |
+          set -e
+          ! grep -rEn 'BEGIN [A-Z ]*PRIVATE KEY' . --exclude-dir=.git
+          ! grep -rEn '/home/[a-z]|/Users/[a-z]' . --exclude-dir=.git --exclude-dir=.github
