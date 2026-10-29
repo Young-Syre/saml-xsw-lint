@@ -12,7 +12,7 @@ signature verifier and the application behind it can disagree about what was sig
 It makes no network requests, and it is not a signature verifier. Both of those are
 explained below, because they are the two things it would be easiest to overclaim.
 
-## Why this bug class exists
+## XML Signature signs a reference, not a document
 
 XML Signature does not sign a document. It signs a *reference*.
 
