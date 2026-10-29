@@ -550,14 +550,14 @@ nothing rather than guessing.
 ```console
 $ python -m unittest discover -s tests -t . -v
 ...
-Ran 163 tests in 2.191s
+Ran 165 tests in 2.191s
 
 OK
 $ python -m tools.make_examples --check
 62 generated file(s), 0 drifted
 ```
 
-163 tests and a little over 300 assertion sites, many of them inside `subTest` loops. The
+165 tests and a little over 300 assertion sites, many of them inside `subTest` loops. The
 run above is on Python 3.14; the CI matrix covers 3.11, 3.12 and 3.13, which are the
 versions the packaging metadata claims.
 
