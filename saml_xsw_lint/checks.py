@@ -429,7 +429,14 @@ def _check_assertion(doc: Document, assertion: ET.Element, options: Options) -> 
     if name_id is not None:
         nid_where = doc.path(name_id)
         fmt = name_id.attrib.get("Format")
-        value = (name_id.text or "").strip()
+        # itertext, not .text: `.text` is only the run before the first child
+        # element, so `<NameID>admin<X/>@evil.test</NameID>` reported as
+        # `'admin'` -- and SEM015 then did not recognise it as an email at all.
+        # A comment cannot split it (expat drops comments during parsing, which
+        # is why the comment-splitting XSW variant does not reach here) but a
+        # child element can, and "two parsers read one document differently" is
+        # this tool's whole subject.
+        value = "".join(name_id.itertext()).strip()
         if not fmt:
             out.append(Finding("SEM013", nid_where, f"NameID {value!r} has no Format"))
         elif fmt == NAMEID_UNSPECIFIED:

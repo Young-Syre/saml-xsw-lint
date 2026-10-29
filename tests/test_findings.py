@@ -167,3 +167,48 @@ class BenignDocuments(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NameIdTextSpanningChildrenTests(unittest.TestCase):
+    """The reported NameID is the whole of its text, not the run before a child.
+
+    `.text` in ElementTree is only the characters before the first child
+    element, so `<NameID>admin<X/>@evil.test</NameID>` was reported as
+    `'admin'` -- and SEM015 did not recognise it as an email address at all,
+    because `'admin'` is not one. A comment cannot split it, since expat drops
+    comments while parsing, which is why the comment-splitting XSW variant does
+    not reach this code; a child element can. "Two parsers read one document
+    differently" is this tool's whole subject, so a truncated value is the
+    wrong thing to print.
+    """
+
+    @staticmethod
+    def _name_id_findings(name_id_inner: str) -> tuple[set[str], list[str]]:
+        import datetime as _dt
+
+        from saml_xsw_lint.checks import Options
+        from saml_xsw_lint.engine import analyse
+        from saml_xsw_lint.model import Document
+        from saml_xsw_lint.safexml import load
+
+        benign = (EXAMPLES / "benign-response.xml").read_bytes().decode("utf-8")
+        start = benign.index("<saml:NameID")
+        open_end = benign.index(">", start) + 1
+        close = benign.index("</saml:NameID>", open_end)
+        patched = benign[:open_end] + name_id_inner + benign[close:]
+        root, raw, notes = load(patched.encode("utf-8"))
+        doc = Document(root=root, raw=raw, notes=notes)
+        results = analyse(doc, Options(now=_dt.datetime(2026, 1, 1, tzinfo=_dt.timezone.utc)))
+        return {f.id for f in results}, [f.detail for f in results]
+
+    def test_a_child_element_does_not_truncate_the_reported_value(self):
+        ids, details = self._name_id_findings("admin<saml:Oops/>@evil.test")
+        joined = " ".join(details)
+        self.assertIn("admin@evil.test", joined, joined)
+        self.assertNotIn("'admin'", joined, "the value was cut at the child element")
+        self.assertIn("SEM015", ids, "an email address assembled across a child is still one")
+
+    def test_an_ordinary_name_id_is_unchanged(self):
+        ids, details = self._name_id_findings("admin@example.test")
+        self.assertIn("admin@example.test", " ".join(details))
+        self.assertIn("SEM015", ids)
